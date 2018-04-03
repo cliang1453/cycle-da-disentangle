@@ -64,16 +64,16 @@ class cyclegan(object):
         #S -> M' + style' -> S_hat
         #real_B -> fake_A + fake_B_style -> fake_B_
         self.fake_A, self.fake_B_style = self.generator_B2A(self.real_B, self.options, False, is_training=self.is_training, name="generatorB2A")
-        self.noise = tf.zeros_like(tf.shape(self.fake_A))
-        if self.add_noise:
+        self.noise = tf.zeros(tf.shape(self.fake_A), dtype=tf.float32)
+        if self.add_noise and self.is_training is True:
             self.noise = tf.random_normal(tf.shape(self.fake_A), mean=0.0, stddev=0.1, dtype=tf.float32)
         self.fake_B_ = self.generator_A2B(self.fake_A + self.noise, self.fake_B_style, self.options, False, is_training=self.is_training, name="generatorA2B")
 
         #M + style' -> S'-> M_hat + style_hat
         #real_A + fake_B_style -> fake_B -> fake_A_ + fake_B_style_
         self.fake_B = self.generator_A2B(self.real_A, self.fake_B_style, self.options, True, is_training=self.is_training, name="generatorA2B")
-        self.noise = tf.zeros_like(tf.shape(self.fake_B))
-        if self.add_noise:
+        self.noise = tf.zeros(tf.shape(self.fake_B), dtype=tf.float32)
+        if self.add_noise and self.is_training is True:
             self.noise = tf.random_normal(shape=tf.shape(self.fake_B), mean=0.0, stddev=0.1, dtype=tf.float32)
         self.fake_A_, self.fake_B_style_ = self.generator_B2A(self.fake_B + self.noise, self.options, True, is_training=self.is_training, name="generatorB2A")
         
@@ -139,9 +139,10 @@ class cyclegan(object):
         self.test_B = tf.placeholder(tf.float32,
                                      [None, self.image_size, self.image_size,
                                       self.output_c_dim], name='test_B')
-        #self.testB = self.generator_A2B(self.test_A, self.options, True, is_training=self.is_training, name="generatorA2B")
+        
         self.testA, self.test_B_style = self.generator_B2A(self.test_B, self.options, True, is_training=self.is_training, name="generatorB2A")
-        print(self.testA)
+        #self.testB = self.generator_A2B(self.test_A, self.test_B_style, self.options, True, is_training=self.is_training, name="generatorA2B")
+        
         t_vars = tf.trainable_variables()
         self.d_vars = [var for var in t_vars if 'discriminator' in var.name]
         self.g_vars = [var for var in t_vars if 'generator' in var.name]
@@ -213,22 +214,12 @@ class cyclegan(object):
 
     def save(self, checkpoint_dir, step):
         model_name = "cyclegan.model"
-        # model_dir = "%s_%s" % (self.dataset_dir, self.image_size)
-        # checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-        #
-        # if not os.path.exists(checkpoint_dir):
-        #     os.makedirs(checkpoint_dir)
-
         self.saver.save(self.sess,
                         os.path.join(checkpoint_dir, model_name),
                         global_step=step)
 
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoint...")
-
-        # model_dir = "%s_%s" % (self.dataset_dir, self.image_size)
-        # checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
@@ -295,8 +286,10 @@ class cyclegan(object):
 
         for sample_file in sample_files:
             print('Processing image: ' + sample_file)
-            sample_image = [load_test_data(sample_file, args.fine_size, is_gray_scale=(args.which_direction == 'AtoB'))]
+            sample_image = [load_test_data(image_path=sample_file, is_gray_scale=(args.which_direction == 'AtoB'), fine_size=args.fine_size)]
             sample_image = np.array(sample_image).astype(np.float32)
+            if len(sample_image.shape) is 3:
+                sample_image = np.expand_dims(sample_image, axis = 3)
             if args.which_direction == 'AtoB':
                 subfolder_name = os.path.split(os.path.dirname(sample_file))[-1]
                 image_folder_path = os.path.join(args.test_dir, subfolder_name)

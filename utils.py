@@ -78,7 +78,6 @@ def imread(path, is_grayscale = False):
 #     return inverse_transform(images)
 
 def merge(images, size):
-    print(images.shape)
     h, w, c = images.shape[1], images.shape[2], images.shape[3]
     
     if c == 1:

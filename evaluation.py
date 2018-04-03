@@ -76,9 +76,8 @@ def maybe_download(filename):
 
 
 def extract_data(filename, num_images):
-  """Extract the images into a 4D tensor [image index, y, x, channels].
-
-  Values are rescaled from [0, 255] down to [-0.5, 0.5].
+  """
+  bytestream -> RGB
   """
   print('Extracting', filename)
 
@@ -97,9 +96,8 @@ def extract_data(filename, num_images):
 
 
 def extract_svhn_data(filename, num_images):
-  """Extract the images into a 4D tensor [image index, y, x, channels].
-
-  Values are rescaled from [0, 255] down to [-0.5, 0.5].
+  """
+  .mat -> RGB
   """
   print('Extracting', filename)
 
@@ -114,10 +112,6 @@ def extract_svhn_data(filename, num_images):
       rgb_data[i, :, :, 0] = r.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
       rgb_data[i, :, :, 1] = g.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
       rgb_data[i, :, :, 2] = b.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
-      # rgb = Image.fromarray(rgb_data[count, :, :, :].astype(numpy.uint8))
-      # rgb.save(os.path.join('/home/chen', 'pixelda', 'validation_test') +'/'+ "%08d"%count +'.png')
-      # break
-
   rgb_data = (rgb_data - (PIXEL_DEPTH / 2.0)) / PIXEL_DEPTH
   return rgb_data
 
@@ -153,22 +147,19 @@ def extract_data_label(filename, num_images):
           
 
 def extract_transferred_data(filename, num_images):
-  """Extract the images into a 4D tensor [image index, y, x, channels].
-
+  """
+  Extract the images into a 4D tensor [image index, y, x, channels].
   Values are rescaled from [0, 255] down to [-0.5, 0.5].
   """
+
   print('Extracting', filename)
   rgb_data = numpy.zeros([num_images, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS], numpy.float32)
 
   for i in range(num_images):
-      test_images = numpy.array(Image.open(filename + "%08d"%(i+1) +'.png'))
-      #test_images = numpy.array(Image.open(filename + "%08d"%(i+1) +'.png'))
-      r = Image.fromarray(test_images[:, :, 0])
-      g = Image.fromarray(test_images[:, :, 1])
-      b = Image.fromarray(test_images[:, :, 2])
-      rgb_data[i, :, :, 0] = r.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
-      rgb_data[i, :, :, 1] = g.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
-      rgb_data[i, :, :, 2] = b.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
+      test_image = Image.open(filename + "%08d"%(i+1) +'.png')
+      rgb_data[i, :, :, 0] = test_image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
+      rgb_data[i, :, :, 1] = test_image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
+      rgb_data[i, :, :, 2] = test_image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
 
   rgb_data = (rgb_data - (PIXEL_DEPTH / 2.0)) / PIXEL_DEPTH
   return rgb_data
@@ -492,17 +483,17 @@ if __name__ == '__main__':
   parser.add_argument(
       '--mode',
       type = str, 
-      default= 'train',
+      default= 'test',
       help='train or test.')
   parser.add_argument(
       '--dir',
       type = str, 
-      default= 'mnist2svhn',
+      default= 'svhn2mnist',
       help='svhn2mnist: train on MNIST train set images; test on SVHN test set -> MNIST images. mnist2svhn: train on MNIST test set -> SVHN images; test on SVHN test set images.')
   parser.add_argument(
       '--data_filename',
       type = str, 
-      default= '/home/chen/cycleGAN/acgan_lsgan_A2B_test_81k/',
+      default= '/home/chen/Documents/cycleDA/cycleda-disentangle/test/in_weight10_noise_BtoA_23k/',
       help='train or test data filename')
   parser.add_argument(
       '--label_filename',
@@ -518,7 +509,7 @@ if __name__ == '__main__':
       '--checkpoint_save',
       type = str, 
       default= '/home/chen/cycleGAN/test/mnist2svhn/1127094857_33k/',
-      help='checkpoint load directory')
+      help='checkpoint save directory')
 
   FLAGS, unparsed = parser.parse_known_args()
   tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
