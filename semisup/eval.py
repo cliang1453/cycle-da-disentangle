@@ -30,6 +30,7 @@ from importlib import import_module
 import numpy as np
 import cPickle as pickle
 import os
+import scipy.io as sio
 
 import architectures
 from architectures import *
@@ -38,6 +39,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
+
 
 # python semisup/eval.py \
 # --checkpoint=./output/0326_28_lenet_mnist/train/model.ckpt-100000 \
@@ -68,6 +70,9 @@ BATCH_SIZE = 16
 DATASET = 'svhn'
 USE_IMAGES = False
 IMAGE_DIR = None
+PSEUDO_LABEL_THRESHOLD = 0.999
+PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
+
 
 # train
 # python semisup/train_baseline.py \
@@ -111,7 +116,8 @@ flags.DEFINE_string('data_filename', DATA_FILENAME, 'Name of data file') #test
 flags.DEFINE_bool('use_images', USE_IMAGES, 'Directly use images.')
 flags.DEFINE_string('image_dir', IMAGE_DIR, 'Test image dir, must provide if use_images is True')
 flags.DEFINE_integer('image_start_index', 1, 'The starting index, 1 or 0')
-
+flags.DEFINE_float('pseudo_label_threshold', PSEUDO_LABEL_THRESHOLD, 'The confidence level that needs to be met for pseudo-label, between 0 and 1.')
+flags.DEFINE_string('output_pseudo_labels_path', PSEUDO_LABEL_PATH, 'The directory to save pseudolabels.')
 
 def main(_):
     # Get dataset-related toolbox.
@@ -131,6 +137,8 @@ def main(_):
         print('Read all images')
     else:
         test_images, test_labels = dataset_tools.get_data(FLAGS.data_filename)
+
+
 
     graph = tf.Graph()
     with graph.as_default():
@@ -175,15 +183,11 @@ def main(_):
 
         # Get prediction tensor from semisup model.
         predictions = tf.argmax(model.test_logit, 1)
+        probability = tf.nn.softmax(model.test_logit)
+        confidences = tf.reduce_max(probability, 1)
         embed = model.test_emb
 
-        # Accuracy metric for summaries.
-        # names_to_values, names_to_updates = slim.metrics.aggregate_metric_map({
-        #     'Accuracy': slim.metrics.streaming_accuracy(predictions, labels),
-        # })
-        # for name, value in names_to_values.iteritems():
-        #     tf.summary.scalar(name, value)
-
+        
         # Run the actual evaluation loop.
         num_batches = math.ceil(len(test_labels) / float(FLAGS.eval_batch_size))
 
@@ -198,16 +202,31 @@ def main(_):
         num_gt = 0
         num_tp = 0
         dump = []
+        pseudo_labels = []
+        selected_images = []
         while step < num_batches:
             # print('%d/%d'%(step, num_batches))
-            image_out, gt, results, embed_out = sess.run([images, labels, predictions, embed])
-            # print(np.max(image_out))
+            image_out, gt, results, confidence, embed_out = sess.run([images, labels, predictions, confidences, embed])
+            
+            # Build pseudo-label
+            if FLAGS.output_pseudo_labels_path is not None:
+                confidence_mask = (confidence > FLAGS.pseudo_label_threshold)
+                pseudo_labels.append(results[np.where(confidence_mask)])
+                selected_images.append(image_out[np.where(confidence_mask)])
+
             num_tp += np.sum(gt==results)
             num_gt += gt.shape[0]
             dump.append((image_out.astype(np.uint8), gt, embed_out, results))
             step += 1
+
             # print(num_gt, num_tp)
         print('Acc: ', num_tp/float(num_gt))
+        if FLAGS.output_pseudo_labels_path is not None:
+            selected_images = np.concatenate(selected_images, axis=0).astype(np.uint8)
+            selected_images = np.transpose(selected_images, (1, 2, 3, 0))
+            pseudo_labels = np.concatenate(pseudo_labels, axis=0).astype(np.uint8)
+            print(pseudo_labels.shape)
+            sio.savemat(FLAGS.output_pseudo_labels_path, {'X':selected_images, 'y':pseudo_labels})
         # with open(os.path.dirname(FLAGS.checkpoint)+'/%s_train_embed.pickle'%FLAGS.dataset, 'wb') as f:
         #     pickle.dump(dump, f)
         return
