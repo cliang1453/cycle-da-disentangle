@@ -42,6 +42,7 @@ LOG_DIR = '/home/chen/Downloads/CycleDA_data/snapshot/star_colorstat_recon30_ps_
 DATASET = 'svhn'
 NEW_SIZE = 32
 ARCHI = 'lenet'
+SAVE_INTERVAL_SECS = 50
 
 
 FLAGS = flags.FLAGS
@@ -134,13 +135,13 @@ flags.DEFINE_string('logdir', LOG_DIR, 'Training log path.')
 flags.DEFINE_integer('save_summaries_secs', 150,
                      'How often should summaries be saved (in seconds).')
 
-flags.DEFINE_integer('save_interval_secs', 300,
+flags.DEFINE_integer('save_interval_secs', SAVE_INTERVAL_SECS,
                      'How often should checkpoints be saved (in seconds).')
 
 flags.DEFINE_integer('log_every_n_steps', 100,
                      'Logging interval for slim training loop.')
 
-flags.DEFINE_integer('max_checkpoints', 5,
+flags.DEFINE_integer('max_checkpoints', 20,
                      'Maximum number of recent checkpoints to keep.')
 
 flags.DEFINE_float('keep_checkpoint_every_n_hours', 5.0,
@@ -313,6 +314,7 @@ def main(argv):
             config.log_device_placement = True
             saver = tf.train.Saver(var_list=tf.trainable_variables(),
                                    max_to_keep=FLAGS.max_checkpoints)
+
             # saver = tf_saver.Saver(max_to_keep=FLAGS.max_checkpoints,
             #                        keep_checkpoint_every_n_hours=FLAGS.keep_checkpoint_every_n_hours)  # pylint:disable=line-too-long
             #local_init_op = tf.global_variables_initializer()
