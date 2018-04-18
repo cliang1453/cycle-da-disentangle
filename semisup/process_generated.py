@@ -8,6 +8,12 @@ import scipy.io as sio
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
 
+'''
+Make train_32x32.mat from generated .png images:
+X: transferred SVHN trainset images (32, 32, 3, 72257)
+y: SVHN transet ground truth labels (1, 72257)
+'''
+
 FLAGS = flags.FLAGS
 
 GEN_DIR = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30/'

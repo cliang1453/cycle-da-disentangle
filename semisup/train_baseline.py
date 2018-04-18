@@ -25,17 +25,28 @@ import sys
 from functools import partial
 from importlib import import_module
 
+import architectures
+from architectures import *
+from backend import *
 import numpy as np
-import semisup
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 from tensorflow.python.training import saver as tf_saver
 
+# train
+# python semisup/train_baseline.py \
+# data_dirs (directory of pseudolabels inferenced from SVHN transferred images and SVHN images) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train/'
+LOG_DIR = '/home/chen/Downloads/CycleDA_data/snapshot/star_colorstat_recon30_ps_train/'
+DATASET = 'svhn'
+NEW_SIZE = 32
+ARCHI = 'lenet'
+
+
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('dataset', 'svhn', 'Which dataset to work on.')
+flags.DEFINE_string('dataset', DATASET, 'Which dataset to work on.')
 
 flags.DEFINE_string('target_dataset', None,
                     'If specified, perform domain adaptation using dataset as '
@@ -45,7 +56,7 @@ flags.DEFINE_string('target_dataset_split', 'unlabeled',
                     'Which split of the target dataset to use for domain '
                     'adaptation.')
 
-flags.DEFINE_string('architecture', 'svhn_model', 'Which network architecture '
+flags.DEFINE_string('architecture', 'lenet', 'Which network architecture '
                     'from architectures.py to use.')
 
 flags.DEFINE_integer('sup_per_class', -1,
@@ -112,13 +123,13 @@ flags.DEFINE_integer('max_steps', 100000, 'Number of training steps.')
 flags.DEFINE_bool('augmentation', False,
                   'Apply data augmentation during training.')
 
-flags.DEFINE_integer('new_size', 0,
+flags.DEFINE_integer('new_size', NEW_SIZE,
                      'If > 0, resize image to this width/height.')
 
 flags.DEFINE_integer('virtual_embeddings', 0,
                      'How many virtual embeddings to add.')
 
-flags.DEFINE_string('logdir', '/tmp/semisup', 'Training log path.')
+flags.DEFINE_string('logdir', LOG_DIR, 'Training log path.')
 
 flags.DEFINE_integer('save_summaries_secs', 150,
                      'How often should summaries be saved (in seconds).')
@@ -211,7 +222,7 @@ def main(argv):
     # print(train_labels.dtype)
     # return
 
-    architecture = getattr(semisup.architectures, FLAGS.architecture)
+    architecture = getattr(architectures, FLAGS.architecture)
 
     num_labels = dataset_tools.NUM_LABELS
     image_shape = dataset_tools.IMAGE_SHAPE
@@ -271,7 +282,7 @@ def main(argv):
                 emb_size=FLAGS.emb_size)
 
             # Set up semisup model.
-            model = semisup.SemisupModel(model_function, num_labels,
+            model = SemisupModel(model_function, num_labels,
                                          image_shape)
 
             # Compute embeddings and logits.
@@ -304,22 +315,23 @@ def main(argv):
                                    max_to_keep=FLAGS.max_checkpoints)
             # saver = tf_saver.Saver(max_to_keep=FLAGS.max_checkpoints,
             #                        keep_checkpoint_every_n_hours=FLAGS.keep_checkpoint_every_n_hours)  # pylint:disable=line-too-long
+            #local_init_op = tf.global_variables_initializer()
 
             slim.learning.train(
                 train_op,
-                logdir=FLAGS.logdir + '/train',
+                logdir=FLAGS.logdir,
                 save_summaries_secs=FLAGS.save_summaries_secs,
                 save_interval_secs=FLAGS.save_interval_secs,
                 master=FLAGS.master,
                 is_chief=(FLAGS.task == 0),
-                # init_op=tf.global_variables_initializer(),
+                #init_op=local_init_op,
                 init_feed_dict={train_images_ph:train_images,
                            train_labels_ph:train_labels},
                 startup_delay_steps=(FLAGS.task * 20),
                 log_every_n_steps=FLAGS.log_every_n_steps,
                 session_config=config,
                 saver=saver,
-                number_of_steps=FLAGS.max_steps,
+                number_of_steps=FLAGS.max_steps
             )
 
             # tf.contrib.learn.train(

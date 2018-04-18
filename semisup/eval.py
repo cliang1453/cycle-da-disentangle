@@ -61,6 +61,7 @@ from tensorflow.python.platform import flags
 # --dataset=svhn
 
 # test generated images
+# data_dirs (directory of SVHN transferred images and SVHN labels) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30/'
 CHECKPOINT= '/home/chen/Documents/cycleDA/Eval_code/model/lenet_28/model.ckpt-100000'
 ARCHI = 'lenet'
 DATA_FILENAME = 'train'
@@ -74,12 +75,7 @@ PSEUDO_LABEL_THRESHOLD = 0.999
 PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
 
 
-# train
-# python semisup/train_baseline.py \
-# --logdir=./output/xxxxx \
-# --dataset=mnist3 \
-# --new_size=28 \
-# --architecture=lenet
+
 
 
 FLAGS = flags.FLAGS
@@ -145,9 +141,8 @@ def main(_):
 
         # Set up input pipeline.
         image, label = tf.train.slice_input_producer([test_images, test_labels], shuffle=False)
-
         images, labels = tf.train.batch(
-            [image, label], batch_size=FLAGS.eval_batch_size)
+            [image, label], batch_size=FLAGS.eval_batch_size, dynamic_pad = True, allow_smaller_final_batch = True)
         images = tf.cast(images, tf.float32)
         labels = tf.cast(labels, tf.int64)
 
@@ -190,6 +185,7 @@ def main(_):
         
         # Run the actual evaluation loop.
         num_batches = math.ceil(len(test_labels) / float(FLAGS.eval_batch_size))
+        extra_in_final_batch = (num_batches*FLAGS.eval_batch_size)-len(test_labels)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
@@ -202,33 +198,34 @@ def main(_):
         num_gt = 0
         num_tp = 0
         dump = []
+        confidence_masks = []
         pseudo_labels = []
-        selected_images = []
         while step < num_batches:
             # print('%d/%d'%(step, num_batches))
             image_out, gt, results, confidence, embed_out = sess.run([images, labels, predictions, confidences, embed])
-            
+
             # Build pseudo-label
             if FLAGS.output_pseudo_labels_path is not None:
+                if step == num_batches - 1:
+                    confidence = confidence[0: int(FLAGS.eval_batch_size - extra_in_final_batch)]
+                    results = results[0: int(FLAGS.eval_batch_size - extra_in_final_batch)]
                 confidence_mask = (confidence > FLAGS.pseudo_label_threshold)
                 pseudo_labels.append(results[np.where(confidence_mask)])
-                selected_images.append(image_out[np.where(confidence_mask)])
+                confidence_masks.append(confidence_mask)
 
             num_tp += np.sum(gt==results)
             num_gt += gt.shape[0]
             dump.append((image_out.astype(np.uint8), gt, embed_out, results))
             step += 1
 
-            # print(num_gt, num_tp)
         print('Acc: ', num_tp/float(num_gt))
         if FLAGS.output_pseudo_labels_path is not None:
-            selected_images = np.concatenate(selected_images, axis=0).astype(np.uint8)
-            selected_images = np.transpose(selected_images, (1, 2, 3, 0))
             pseudo_labels = np.concatenate(pseudo_labels, axis=0).astype(np.uint8)
-            print(pseudo_labels.shape)
-            sio.savemat(FLAGS.output_pseudo_labels_path, {'X':selected_images, 'y':pseudo_labels})
-        # with open(os.path.dirname(FLAGS.checkpoint)+'/%s_train_embed.pickle'%FLAGS.dataset, 'wb') as f:
-        #     pickle.dump(dump, f)
+            confidence_masks = np.concatenate(confidence_masks, axis=0).astype(np.uint8)
+            print('Number of generated pseudo labels: ' + str(pseudo_labels.shape[0]) + '/' + str(confidence_masks.shape[0]))
+            if not os.path.exists(os.path.dirname(FLAGS.output_pseudo_labels_path)):
+                os.makedirs(os.path.dirname(FLAGS.output_pseudo_labels_path))
+            sio.savemat(FLAGS.output_pseudo_labels_path, {'Mask': confidence_masks, 'Pseudo': pseudo_labels})
         return
 
 
