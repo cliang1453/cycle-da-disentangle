@@ -60,19 +60,35 @@ from tensorflow.python.platform import flags
 # --eval_batch_size=16 
 # --dataset=svhn
 
-# test generated images
+# test transferred SVHN trainset images on MNIST pretrained model, checking with SVHN trainset ground truth labels
 # data_dirs (directory of SVHN transferred images and SVHN labels) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30/'
-CHECKPOINT= '/home/chen/Documents/cycleDA/Eval_code/model/lenet_28/model.ckpt-100000'
+# CHECKPOINT= '/home/chen/Documents/cycleDA/Eval_code/model/lenet_28/model.ckpt-100000'
+# ARCHI = 'lenet'
+# DATA_FILENAME = 'train'
+# NEW_SIZE = 32 
+# EMB_SIZE = 512
+# BATCH_SIZE = 16
+# DATASET = 'svhn'
+# USE_IMAGES = False
+# IMAGE_DIR = None
+# PSEUDO_LABEL_THRESHOLD = 0.999
+# PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
+
+# test SVHN valset images on pseudo-labeled SVHN trainset images pretrained models, checking with SVHN valset ground truth labels
+# data_dirs (directory of SVHN images and SVHN labels) = '/home/chen/Documents/cycleDA/Eval_code/data/svhn/'
+# data_dirs (directory of SVHN images and pseudo labels) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train/'
+CHECKPOINT= '/home/chen/Downloads/CycleDA_data/snapshot/star_colorstat_recon30_ps_train/model.ckpt-35536'
 ARCHI = 'lenet'
-DATA_FILENAME = 'train'
-NEW_SIZE = 28 
+DATA_FILENAME = 'val'
+NEW_SIZE = 32 
 EMB_SIZE = 512
 BATCH_SIZE = 16
 DATASET = 'svhn'
 USE_IMAGES = False
 IMAGE_DIR = None
-PSEUDO_LABEL_THRESHOLD = 0.999
-PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
+PSEUDO_LABEL_THRESHOLD = None
+PSEUDO_LABEL_PATH = None
+
 
 
 
