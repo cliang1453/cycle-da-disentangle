@@ -35,6 +35,7 @@ import scipy.io as sio
 import architectures
 from architectures import *
 from backend import *
+from utils import *
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.python.platform import app
@@ -62,32 +63,33 @@ from tensorflow.python.platform import flags
 
 # test transferred SVHN trainset images on MNIST pretrained model, checking with SVHN trainset ground truth labels
 # data_dirs (directory of SVHN transferred images and SVHN labels) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30/'
-# CHECKPOINT= '/home/chen/Documents/cycleDA/Eval_code/model/lenet_28/model.ckpt-100000'
+CHECKPOINT= '/home/chen/Documents/cycleDA/Eval_code/model/lenet_28/model.ckpt-100000'
+ARCHI = 'lenet'
+DATA_FILENAME = 'train'
+NEW_SIZE = 28 
+EMB_SIZE = 512
+BATCH_SIZE = 16
+DATASET = 'svhn'
+USE_IMAGES = False
+IMAGE_DIR = None
+PSEUDO_LABEL_THRESHOLD = 0.999
+PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
+VIS = True
+NUM_BATCH_TO_VIS = 6
+
+# test SVHN valset images on pseudo-labeled SVHN trainset images pretrained models, checking with SVHN valset ground truth labels
+# data_dirs (directory of SVHN images and SVHN labels) = '/home/chen/Documents/cycleDA/Eval_code/data/svhn/'
+# CHECKPOINT= '/home/chen/Downloads/CycleDA_data/snapshot/star_colorstat_recon30_ps_train_reducelayer/model.ckpt-22126'
 # ARCHI = 'lenet'
-# DATA_FILENAME = 'train'
+# DATA_FILENAME = 'val'
 # NEW_SIZE = 32 
 # EMB_SIZE = 512
 # BATCH_SIZE = 16
 # DATASET = 'svhn'
 # USE_IMAGES = False
 # IMAGE_DIR = None
-# PSEUDO_LABEL_THRESHOLD = 0.999
-# PSEUDO_LABEL_PATH = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
-
-# test SVHN valset images on pseudo-labeled SVHN trainset images pretrained models, checking with SVHN valset ground truth labels
-# data_dirs (directory of SVHN images and SVHN labels) = '/home/chen/Documents/cycleDA/Eval_code/data/svhn/'
-# data_dirs (directory of SVHN images and pseudo labels) = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train/'
-CHECKPOINT= '/home/chen/Downloads/CycleDA_data/snapshot/star_colorstat_recon30_ps_train/model.ckpt-35536'
-ARCHI = 'lenet'
-DATA_FILENAME = 'val'
-NEW_SIZE = 32 
-EMB_SIZE = 512
-BATCH_SIZE = 16
-DATASET = 'svhn'
-USE_IMAGES = False
-IMAGE_DIR = None
-PSEUDO_LABEL_THRESHOLD = None
-PSEUDO_LABEL_PATH = None
+# PSEUDO_LABEL_THRESHOLD = None
+# PSEUDO_LABEL_PATH = None
 
 
 
@@ -130,6 +132,8 @@ flags.DEFINE_string('image_dir', IMAGE_DIR, 'Test image dir, must provide if use
 flags.DEFINE_integer('image_start_index', 1, 'The starting index, 1 or 0')
 flags.DEFINE_float('pseudo_label_threshold', PSEUDO_LABEL_THRESHOLD, 'The confidence level that needs to be met for pseudo-label, between 0 and 1.')
 flags.DEFINE_string('output_pseudo_labels_path', PSEUDO_LABEL_PATH, 'The directory to save pseudolabels.')
+flags.DEFINE_bool('visualize', VIS, 'visualize or not.')
+flags.DEFINE_int('num_batches_to_visualize', NUM_BATCH_TO_VIS, 'The number of batches to visualize.')
 
 def main(_):
     # Get dataset-related toolbox.
@@ -216,9 +220,16 @@ def main(_):
         dump = []
         confidence_masks = []
         pseudo_labels = []
+        vis_images = []
+        vis_selected = []
+        count_idx = 0
         while step < num_batches:
             # print('%d/%d'%(step, num_batches))
             image_out, gt, results, confidence, embed_out = sess.run([images, labels, predictions, confidences, embed])
+
+            if FLAGS.visualize: 
+                if step == int(num_batches/2)- int(FLAGS.num_batches_to_visualize/2) or step == int(num_batches/2) + int(FLAGS.num_batches_to_visualize/2) + 1:
+                    print(count_idx)
 
             # Build pseudo-label
             if FLAGS.output_pseudo_labels_path is not None:
@@ -228,6 +239,13 @@ def main(_):
                 confidence_mask = (confidence > FLAGS.pseudo_label_threshold)
                 pseudo_labels.append(results[np.where(confidence_mask)])
                 confidence_masks.append(confidence_mask)
+                count_idx += results[np.where(confidence_mask)].shape[0]
+
+            if FLAGS.visualize: 
+                if step >= int(num_batches/2) - int(FLAGS.num_batches_to_visualize/2) and step <= int(num_batches/2) + int(FLAGS.num_batches_to_visualize/2):
+                    vis_images.append(image_out)
+                    selected = image_out[np.where(confidence_mask)]
+                    vis_selected.append(selected)
 
             num_tp += np.sum(gt==results)
             num_gt += gt.shape[0]
@@ -235,13 +253,28 @@ def main(_):
             step += 1
 
         print('Acc: ', num_tp/float(num_gt))
+        
         if FLAGS.output_pseudo_labels_path is not None:
             pseudo_labels = np.concatenate(pseudo_labels, axis=0).astype(np.uint8)
             confidence_masks = np.concatenate(confidence_masks, axis=0).astype(np.uint8)
             print('Number of generated pseudo labels: ' + str(pseudo_labels.shape[0]) + '/' + str(confidence_masks.shape[0]))
+            
             if not os.path.exists(os.path.dirname(FLAGS.output_pseudo_labels_path)):
                 os.makedirs(os.path.dirname(FLAGS.output_pseudo_labels_path))
             sio.savemat(FLAGS.output_pseudo_labels_path, {'Mask': confidence_masks, 'Pseudo': pseudo_labels})
+
+            if FLAGS.visualize:  
+                vis_images = np.concatenate(vis_images, axis=0).astype(np.uint8)
+                vis_selected = np.concatenate(vis_selected, axis=0).astype(np.uint8)
+                vis_selected = vis_selected[0: int(vis_selected.shape[0] / 8) * 8]
+                print(vis_images.shape)
+                print(vis_selected.shape)
+
+            
+            save_images(vis_images, [int(vis_images.shape[0] / 8), 8],
+                         '{}/transferred_SVHN_{:04d}.png'.format(os.path.dirname(FLAGS.output_pseudo_labels_path), step))
+            save_images(vis_selected, [int(vis_selected.shape[0] / 8), 8],
+                        '{}/pseudolabeled_SVHN_{:04d}.png'.format(os.path.dirname(FLAGS.output_pseudo_labels_path), step))
         return
 
 

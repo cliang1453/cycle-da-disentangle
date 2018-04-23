@@ -7,6 +7,7 @@ import numpy as np
 import scipy.io as sio
 from tensorflow.python.platform import flags
 from tensorflow.python.platform import app
+from utils import *
 
 '''
 Make train_32x32.mat for next round of training:
@@ -20,17 +21,23 @@ FLAGS = flags.FLAGS
 PSEUDO_LABEL_DIR = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train_32x32.mat'
 OUTPUT_PRE = '/home/chen/Downloads/CycleDA_data/star_colorstat_recon30_ps/train/train'
 CHECK_PSEUDO_LABEL_ACC = True
+VIS = True
+START = 17965
+END = 18005
 
 flags.DEFINE_string('pseudo_label_dir', PSEUDO_LABEL_DIR, 'Directory of pseudo_labels')
+flags.DEFINE_string('vis_dir', OUTPUT_VIS, 'Directory of pseudo_labels')
 flags.DEFINE_string('output_path_prefix', OUTPUT_PRE, 'Name of output file')
 flags.DEFINE_string('image_set', 'train', 'The corresponding set of pseudo_labels')
 flags.DEFINE_integer('start_idx', 1, 'The starting index of generated image, usually 0 or 1')
 flags.DEFINE_bool('check_acc', CHECK_PSEUDO_LABEL_ACC, '(# of correct pseudo-labels) / (# of total pseudo-labels)')
+flags.DEFINE_integer('visualize', VIS, 'visualize')
 
 
-def generate_mat(image_set, start_idx, pseudo_label_dir, output_path_prefix, check_acc):
+def generate_mat(image_set, start_idx, pseudo_label_dir, output_path_prefix, check_acc, visualize):
     
     images, gt_labels = svhn_tools.get_data(image_set)
+    print(pseudo_label_dir)
     pseudo_mat = sio.loadmat(pseudo_label_dir)
     labels = pseudo_mat['Pseudo'].astype(np.uint8)
     mask = np.squeeze(pseudo_mat['Mask']).astype(np.uint8)
@@ -38,6 +45,12 @@ def generate_mat(image_set, start_idx, pseudo_label_dir, output_path_prefix, che
     output_path = output_path_prefix + '_32x32.mat'
 
     images = images[np.where(mask)]
+    if visualize:
+        vis_selected = images[START: END]
+        print(vis_selected.shape)
+        save_images(vis_selected, [int(vis_selected.shape[0] / 8), 8],
+                    '{}/original_SVHN_{:05d}.png'.format(os.path.dirname(pseudo_label_dir), START))
+
     images = np.transpose(images, (1, 2, 3, 0))
 
     if check_acc:
@@ -45,7 +58,7 @@ def generate_mat(image_set, start_idx, pseudo_label_dir, output_path_prefix, che
         acc = 1 - float(np.count_nonzero(gt_labels - labels))/float(mask.shape[0])
         print('Acc: ' + str(acc))
 
-    sio.savemat(output_path, {'X':images, 'y':labels})
+   sio.savemat(output_path, {'X':images, 'y':labels})
 
 def main(_):
     
@@ -53,7 +66,7 @@ def main(_):
         os.makedirs(os.path.dirname(FLAGS.output_path_prefix))
     
     generate_mat(FLAGS.image_set, FLAGS.start_idx, 
-                 FLAGS.pseudo_label_dir, FLAGS.output_path_prefix, FLAGS.check_acc)
+                 FLAGS.pseudo_label_dir, FLAGS.output_path_prefix, FLAGS.check_acc, FLAGS.visualize)
 
 
 if __name__ == "__main__":
